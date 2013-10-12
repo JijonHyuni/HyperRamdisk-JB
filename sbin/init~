@@ -1,0 +1,95 @@
+#!/bin/sh
+
+BB=/bin/busybox
+
+
+setup_devtmpfs() {
+    mount -t devtmpfs -o mode=0755,nr_inodes=0 devtmpfs $1/dev
+    # Create additional nodes which devtmpfs does not provide
+    test -c $1/dev/fd || /bin/busybox ln -sf /proc/self/fd $1/dev/fd
+    test -c $1/dev/stdin || /bin/busybox ln -sf fd/0 $1/dev/stdin
+    test -c $1/dev/stdout || /bin/busybox ln -sf fd/1 $1/dev/stdout
+    test -c $1/dev/stderr || /bin/busybox ln -sf fd/2 $1/dev/stderr
+}
+
+mkdir -m 0755 /proc
+mount -t proc proc /proc
+mkdir -m 0755 /sys
+mount -t sysfs sys /sys
+mkdir -p /dev
+
+mount -t sysfs sys /sys
+echo 0 > /proc/sys/kernel/hung_task_timeout_secs
+setup_devtmpfs ""
+
+fail() {
+    echo "Failed" > /dev/ttyprintk
+    echo "$1" > /dev/ttyprintk
+    echo "Waiting for 15 seconds before rebooting ..." > /dev/ttyprintk
+    sleep 15s
+    reboot
+}
+
+echo 1 > /sys/devices/platform/omapdss/overlay0/enabled
+echo "Mounting relevant filesystems ...Done" > /dev/ttyprintk
+
+#/dev/input/event2
+# 114 Volume down
+# 115 Volume up
+# 116 Power
+
+#key=`/sbin/evkey -u -t 5000 /dev/input/event2`
+
+#if [ "x${key}" != "x" ]; then
+
+sleep 5
+
+/bin/busybox mkdir /system
+
+
+
+echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+sleep 0.3
+echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+echo 4 4 1 7 > /proc/sys/kernel/printk
+
+
+sleep 3
+
+key=`/sbin/evkey -u -t 4000 /dev/input/event2`
+
+if [ "x${key}" != "x" ]; then
+	sh /bin/sysinfo.sh 11
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	sleep 0.3
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	echo 0 4 1 7 > /proc/sys/kernel/printk
+	umount -l /proc
+	umount -l /sys
+	umount -l /dev
+		$BB cp /fstab.tuna2 /fstab.tuna
+		$BB cp /init.rc2 /init.rc
+		$BB cp /init.tuna.rc2 /init.tuna.rc
+	$BB cp /_init /init
+	/init
+else
+	echo 150 > /sys/devices/virtual/timed_output/vibrator/enable
+	sh /bin/sysinfo.sh 10
+	echo 0 4 1 7 > /proc/sys/kernel/printk
+	umount /system
+	umount -l /proc
+	umount -l /sys
+	umount -l /dev
+	$BB cp /_init /init
+	/init
+fi
+
+
+#select_os
+
+#if [ $? -eq 10 ]; then
+
+#else
+
+#fi
+

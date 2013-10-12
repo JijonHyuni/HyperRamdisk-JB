@@ -1,0 +1,160 @@
+#!/bin/sh
+
+# PreScript
+BB=/bin/busybox
+R1=0
+R2=0
+COUNT=0
+
+[ -d /dev ] || mkdir -p /dev
+[ -d /proc ] || mkdir -m 0755 /proc
+[ -d /sys ] || mkdir -m 0755 /sys
+[ -d /system ] || mkdir /system
+
+# Temp System Mount && VT
+mount -t devtmpfs -o mode=0755,nr_inodes=0 devtmpfs /dev
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+echo 4 4 1 7 > /proc/sys/kernel/printk
+
+# Boot Script
+android_boot() {
+	sh /sysinfo.sh $1
+	umount -l /proc
+	umount -l /sys
+	umount -l /dev
+	$BB cp /_init /init
+	sleep 1
+}
+
+
+first_boot() {
+	echo "found rom = 1st olny" > /dev/ttyprintk
+	echo 150 > /sys/devices/virtual/timed_output/vibrator/enable
+	android_boot "10"
+	/init
+}
+
+second_boot(){
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	sleep 0.3
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	echo "found roms = 1st, 2nd"
+	key=`/sbin/evkey -u -t 4000 /dev/input/event2`
+	if [ "x${key}" == "x" ]; then
+		echo 150 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "1st Boot Start..." > /dev/ttyprintk
+		android_boot "10"
+		/init
+	else
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "2nd Boot Start..." > /dev/ttyprintk
+		mkdir -p /.cache
+		android_boot "12"
+		$BB cp -f /second/* /
+		$BB	cat /fstab.tuna
+		/init
+	fi
+}
+
+third_boot(){
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	sleep 0.3
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	echo "found roms = 1st, 3rd"
+	key=`/sbin/evkey -u -t 4000 /dev/input/event2`
+	if [ "x${key}" == "x" ]; then
+		echo 150 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "1st Boot Start..." > /dev/ttyprintk
+		android_boot "10"
+		/init
+	else
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "3rd Boot Start..." > /dev/ttyprintk
+		mkdir -p /.cache
+		android_boot "13"
+		$BB cp -f /third/* /
+		$BB	cat /fstab.tuna
+		/init
+	fi
+}
+
+
+full_boot(){
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	sleep 0.3
+	echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+	echo "found rom = 1st, 2nd, 3rd"
+	key=`/sbin/evkey -u -t 4000 /dev/input/event2`
+	if [ "x${key}" == "x" ]; then
+		echo 150 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "1st Boot Start..." > /dev/ttyprintk
+		android_boot "10"
+		/init
+	elif [ "x${key}" == "x114" ]; then
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "2nd Boot Start..." > /dev/ttyprintk
+		mkdir -p /.cache
+		android_boot "12"
+		$BB cp -f /second/* /
+		$BB	cat /fstab.tuna
+		/init
+	elif [ "x${key}" == "x115" ]; then
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		sleep 0.3
+		echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+		echo "3rd Boot Start..." > /dev/ttyprintk
+		mkdir -p /.cache
+		android_boot "13"
+		$BB cp -f /third/* /
+		$BB	cat /fstab.tuna
+		/init
+	else
+		/bin/sh
+	fi
+}
+
+
+# Roms searching....
+
+$BB mkdir /.secondrom
+$BB mount -t ext4 /dev/mmcblk0p12 /.secondrom
+
+if [ -d /.secondrom/media/0/multirom/roms/2nd/ ]; then
+	R1=`$BB expr $R1 + 1`
+fi
+if [ -d /.secondrom/media/0/multirom/roms/3rd/ ]; then
+	R2=`$BB expr $R2 + 2`
+fi
+
+COUNT=`$BB expr $R1 + $R2`
+
+# Boot choice
+
+echo "seq=$COUNT"
+
+if [ "$COUNT" -eq 0 ]; then
+	echo "1st Boot Start..." 
+	first_boot
+elif [ $COUNT -eq 1 ]; then
+	echo "2nd Boot Start..." 
+	second_boot
+elif [ $COUNT -eq 2 ]; then
+	echo "3rd Boot Start..."
+	third_boot
+else
+	echo "Full Boot Start..."
+	full_boot
+fi
+
+
